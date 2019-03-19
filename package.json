@@ -1,0 +1,29 @@
+{
+  "name": "dcptz",
+  "version": "1.0.0",
+  "description": "an interface wrapper of control APIs, including PTZ,  for dome cameras",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/yqsf2018/dcptz.git"
+  },
+  "keywords": [
+    "Dome",
+    "Camera",
+    "Control",
+    "PTZ",
+    "API",
+    "Node",
+    "Dahua",
+    "Hikvision"
+  ],
+  "author": "YQ Sun",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/yqsf2018/dcptz/issues"
+  },
+  "homepage": "https://github.com/yqsf2018/dcptz#readme"
+}
