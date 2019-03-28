@@ -25,5 +25,10 @@
   "bugs": {
     "url": "https://github.com/yqsf2018/dcptz/issues"
   },
-  "homepage": "https://github.com/yqsf2018/dcptz#readme"
+  "homepage": "https://github.com/yqsf2018/dcptz#readme",
+  "dependencies": {
+    "debug": "^4.1.1",
+    "digest-auth-request": "^0.7.0",
+    "xmlhttprequest": "^1.8.0"
+  }
 }
