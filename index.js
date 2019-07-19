@@ -1,85 +1,238 @@
-let dhCore = require('./lib/dh-core');
-let ptzConv = require('./lib/ptz-conv');
-let camdb = require('./lib/camdb');
+const express = require('express')
+    ,fs = require('fs')
+    ,path = require('path')
+    ,https = require('https')
+    ,util = require('util')
+    ,config = require('config')
+    ,logger = require('./restExt/utils/logger')
+    ,bodyParser = require('body-parser')
+    ,objLoc = require('./lib/objLoc')
+    ,methodOverride = require('method-override');
 
-exports.init = function(camCfg, cb){
+var dbg = require('debug')('main');
 
-exports.init = function(camCfgFile) {
-	return (
-		new Promise(camCfgFile, function(resolve, reject)){
-			cfgStat = fs.stat(camCfgFile, function(err, cfgStat){
-				if(err.ENOENT || cfgStat.isFile()) {
-					return camdb.newDB(camCfgFile)
-				} 
-			});
-			if (cfgStat.isFile()) {
-				resolve()
-			}
-			else {
+let app, srvPort, cfg;
 
-			}
-	return 
+let dflt404Handler = function(req, res, next) {
+  var err = new Error('Not Found');
+  err.status = 404;
+  res.send({
+      message: "Specified URL not found",
+      error: "Not_Found"
+  });
 };
 
-exports.addCam = function(camCfg, cb){
-	if (validCamCfg(camCfg)) {
-		let i = '';
-		if ('camID' in camCfg) {
-			i = camCfg.camID;
-		}
-		else {
-			i = getCamID(camCfg);
-		}
-		cams[i] = {};
-		cams[i].hostip = camCfg.ip;
-		cams[i].make = camCfg.make;
-		cams[i].model = camCfg.model;
-		cams[i].fwVer = camCfg.fwVer;
-		cams[i].user = camCfg.user;
-		cams[i].pswd = camCfg.pswd;
-		camdb.save(i, cam)
-	}
-	else{
-		return '';
-	}
-	camdb.init(camCfg, cb);
+let dfltErrHandler = function(err, req, res, next) {
+  let curEnv = app.get('env');
+  console.log(util.format('running in %s env', curEnv));
+  dbg('Err handers(): ', req);
+  res.status(err.status || 500);
+  logger.error("Encounter error: "+err.message);
 };
 
-exports.load = function(camCfgFile, cb){
-
-	camdb.load(camCfgFile, cb);
+const dfltHandlers = {
+  err404:dflt404Handler
+  , errMisc:dfltErrHandler
 };
 
-exports.save = function(camID, camCfgFile, cb){
-
+let validateRestCfg = function (restCfg) {
+  // TODO: add validation for rest config
+  return null;
 };
 
-exports.getCamCfg = function(camID, cb){
-
+let validateSvcCfg = function (restCfg) {
+  // TODO: add validation for svc configuration
+  return null;
 };
 
-exports.getPTZ = function(camID, cb){
-
+let loadAppCfg = function (appCfg) {
+  let err = null;
+  do {
+    if (null == appCfg) {
+      // appCfg = './config/wcsCfg.js';
+      cfg = config.get('srv');
+    }
+    else {
+      let cfgStat = fs.statSync(appCfg);
+      if (true == cfgStat.isFile()){
+        dbg('loadAppCfg(): Using Server Config:', appCfg);
+        cfg = require(appCfg);
+      }  
+    }
+    dbg('loadAppCfg(): cfg=',cfg);
+    if ('restful' in cfg) {
+      err = validateRestCfg (cfg.restful);
+    }
+    else {
+      err = 'no valid Rest Server config';
+    }
+    if (err) {
+      break;
+    }
+    if ('svcSet' in cfg) {
+      err = validateSvcCfg (cfg.svcSet);
+    }
+    else {
+      err = 'no valid service config';
+    }
+  }while(false);
+  return err;
 };
 
-exports.resetPTZ = function(camID, cb){
+let validateOneItem = function (funcSet, itemName, itemType) {
+  if (itemName in funcSet) {
+    if ('function' == typeof funcSet[itemName]) {
+      dbg('Found ',itemName, ' as ', itemType);
+      return null;
+    }
+  }
+  return util.format('Missing %s as %s', itemName, itemType);
+}
 
+let validateHandlers = function(funcSet) {
+  let totErr = "";
+  try{
+    Object.keys(dfltHandlers).forEach(function(hKey){
+      err = validateOneItem(funcSet, hKey, typeof dfltHandlers[key]);
+      if (err) {
+        dbg("validateHandlers(): ", err);
+        totErr += err + '\n';
+      }
+    });
+    if (0==totErr.length) {
+      return null;
+    }
+    else {
+      return totErr;
+    }
+  }catch(e) {
+    totErr = util.format("invalid handler set, %s", funcSet);
+    dbg("validateHandlers(): ", totErr);
+    return totErr;
+  }
 };
 
-exports.setPTZ = function(camID, ptzCfg,  cb){
+exports.createAppSrv = function (app_handlers, cb, appCfg = null) {
+  let err = loadAppCfg(appCfg);
+  if (err) {
+    cb(err, appCfg);
+  }
 
+  let restHandlers = dfltHandlers;
+
+  if (null == validateHandlers(app_handlers)) {
+    dbg('createAppSrv(): using custom app handlers');
+    restHandlers = app_handlers;
+  }
+
+  let svcCfg = cfg.svcSet;
+
+  app = express();
+  // CORS (Cross-Origin Resource Sharing) headers to support Cross-site HTTP requests
+  app.all('*', function(req, res, next) {
+      res.setHeader("Access-Control-Allow-Methods", "POST, PUT, OPTIONS, DELETE, GET");
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Access-Control-Allow-Headers,X-Requested-With");
+      next();
+  });
+
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({
+      extended: true
+  }));
+  app.use(methodOverride());      // simulate DELETE and PUT
+  // app.use('/auth', auth);
+  dbg('svcCfg', svcCfg, Object.keys(svcCfg));
+  let svcRte = {};
+  let svcInst = {};
+  Object.keys(svcCfg).forEach(function(key) {
+    let svc = svcCfg[key];
+    let svcEP = '/' + key;
+    let svcModLoc = './' + path.join(svc.svcPath,key);
+    let rteModLoc = './' + path.join(svc.routePath,key);
+    dbg(util.format('Set %s, EP=%s, rte@%s, svc@%s', key,svcEP, rteModLoc,svcModLoc));
+    svcRte[key] = require( rteModLoc )
+    app.use(svcEP, svcRte[key]);
+    svcInst[key] = require( svcModLoc );
+    svcInst[key].init(svc.setting, svc.errEnum, svc.stEnum, function(){
+      dbg(key,' init: done')
+      logger.info(key + ' Initialized');
+    });
+  });
+/*  app.use(function(req, res, next) {
+    logger.debug("req.body="+JSON.stringify(req.body));
+    var contentType = req.headers['content-type'];
+    //in app.js, only verify token for the request with "application/json" content-type.
+    //for other type of request (e.g. multipart/form-data), verify token after the request is parsed. 
+    if(contentType === 'application/json'){
+        token.verify(req.body.token, req.body.apiKey, function(err, fromToken){
+            if (err){
+                var resp={};
+                resp.status=err;
+                res.status(200).send(resp);
+            }else{
+                if ('brand' in req.body && fromToken.brand != 'allBrands' && fromToken.brand != req.body.brand) {
+                    console.log("app.use(), " + JSON.stringify(fromToken));
+                    usrms.authorizedBrand(fromToken.username, req.body.brand, function(err){
+                        if (err) {
+                            var resp={};
+                            resp.status = err;
+                            res.status(200).send(resp);
+                        } else {
+                            //req.body.brand = fromToken.brand;
+                            delete fromToken.brand;
+                            Object.keys(fromToken).forEach(function(key){
+                              req.body[key] = fromToken[key];
+                            });
+                            delete req.body.token;
+                            next();      
+                        }
+                    });
+                } else {
+                    //req.body.brand = fromToken.brand;
+                    delete fromToken.brand;
+                    Object.keys(fromToken).forEach(function(key){
+                        req.body[key] = fromToken[key];
+                    });
+                    delete req.body.token;
+                    next();
+                }
+            }
+        });
+      } else {
+          next();
+      } 
+  });*/
+  // catch 404 and forward to error handler
+  app.use(restHandlers.err404);
+
+  /* error handlers */
+
+  /* development error handler
+   will print stacktrace
+   */
+  app.use(restHandlers.err404);
+  app.use(restHandlers.errMisc);
+
+  cb(null);
+  return null;
 };
 
-exports.gotoRef = function(camID, refID, cb){
-
-};
-
-exports.setRef = function(camID, refID, cb){
-
-};
-
-exports.gotoXY = function(camID, x, y, cb){
-
+exports.runAppSrv = function(srvStartup) {
+  let restCfg = cfg.restful;
+  let srvPort = restCfg.port;
+  if (true == restCfg.fSecure) {
+    let srvCert=restCfg.cert;
+    dbg('Starting HTTPS at ', srvPort);
+    https.createServer({
+      key: fs.readFileSync(path.join(srvCert.path, srvCert.keyfile)),
+      cert: fs.readFileSync(path.join(srvCert.path, srvCert.certfile))
+    }, app).listen(srvPort, srvStartup);
+  }
+  else {
+    dbg('Starting HTTP at ', srvPort);
+    app.listen(srvPort, srvStartup);
+  }
 };
 
 

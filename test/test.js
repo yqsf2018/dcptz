@@ -87,6 +87,20 @@ else if ('p'==testSubj){
 		console.log('resp:', resp);
 	});
 }
+else if ('z'==testSubj){
+	let zVal = 20;
+	if (process.argv.length > 3){
+		zDir = parseInt(process.argv[3])
+	}
+	if (process.argv.length > 4){
+		zVal = parseInt(process.argv[4])
+	}
+	msg = util.format('Zoom:%d,%d', zDir, zVal);
+	console.log(msg);
+	tobj.zoom(0, zDir, zVal, function(resp){
+		console.log('resp:', resp);
+	});
+}
 else if ('t'==testSubj){
 	tcalc.init();
 	let target = {
@@ -103,7 +117,7 @@ else if ('t'==testSubj){
 	if (process.argv.length > 5){
 		zoom = parseInt(process.argv[5])
 	}
-	let dptz = tcalc.xy2ptz(0, target);
+	let dptz = tcalc.xy2ptz(target);
 	msg = util.format('(%d,%d) => (%d,%d)', target.x, target.y, dptz.pan,dptz.tilt);
 	console.log(msg);
 	console.log('Save Current PTZ as Ref #10');
@@ -118,6 +132,44 @@ else if ('t'==testSubj){
 				console.log('Goto PTZ:', json);
 				tobj.setPTZ(0, json, function(resp){
 					console.log('resp:', resp);
+				});
+			});
+        }
+	});
+}
+else if ('a'==testSubj){
+	tcalc.init();
+	let target = {
+		 x:0
+		,y:0
+	};
+	let zoom = 0;
+	if (process.argv.length > 3){
+		target.x = parseInt(process.argv[3])
+	}
+	if (process.argv.length > 4){
+		target.y = parseInt(process.argv[4])
+	}
+	if (process.argv.length > 5){
+		speed = parseInt(process.argv[5])
+	}
+	let dir = tcalc.xy2dir(0, target);
+	msg = util.format('(%d,%d) => <%d,%d>', target.x, target.y, dir, speed);
+	console.log(msg);
+	console.log('Save Current PTZ as Ref #10');
+	tobj.setRef(0, 10, function(resp){
+		console.log('setRef resp:', resp);
+        if (-1 != resp.indexOf('OK')) {
+        	tobj.getPTZinJson(0, function(resp, json){
+				console.log('PTZ JSON:', json);
+				tobj.approachPos(0, dir, speed, function(resp){
+					console.log('approachPos resp:', resp);
+					setTimeout(tobj.stopApproach, 2000, 0, dir, function(resp){
+                        console.log('STOP resp:', resp);
+                        	tobj.getPTZinJson(0, function(resp, jsonStop){
+                        		console.log('PTZ JSON:', jsonStop);
+                        	});
+					});
 				});
 			});
         }

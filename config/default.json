@@ -1,0 +1,82 @@
+{
+    "srv": {
+        "restful": {
+            "addr": "localhost"
+            , "port": 5000
+            , "fSecure":true
+            , "cert":{
+                "path":"../cert/"
+                ,"keyfile":"snakeoil.key"
+                ,"certfile":"snakeoil.crt"
+            }
+        }
+        
+        ,"svcSet": {
+            "dc": {  // restful endpoint
+                "routePath":"./restExt/routes"
+                ,"svcPath":"./lib"
+                ,"camColl":"cameras"
+                ,"setting":{
+                    "version":"1.0.0"
+                    ,"calibFailMax":5
+                    ,"calibInterval":400
+                    ,"calibConfThrs":4
+                    ,"zoomValBase":100
+                    ,"dfltPtzCfg":{
+                        "pan":-99,
+                        "tilt":-99,
+                        "zoom":-99
+                    }
+                    ,"dfltPtzErr":{
+                        "pan":2,
+                        "tilt":2,
+                        "zoom":2
+                    }
+                    ,"updateOption": "ACC"
+                    ,"indexCol":"Day"
+                    ,"ValueCol":"Count"
+                    ,"sumKey":"Total"
+                    ,"lineSep":"\n"
+                    ,"tokenSep":":"
+                }
+                ,"errEnum":{
+                    "ERR_NONE":"None"
+                    ,"ERR_CAM":"CAM_ERROR"
+                    ,"ERR_INV_REQ":"INVALID_REQUEST"
+                }
+            }
+            ,"objLoc": {  // restful endpoint
+                "routePath":"./restExt/routes"
+                ,"svcPath":"./lib"
+                ,"setting":{
+                    "version":"1.0.1"
+                    ,"preloadList":{
+                        "area":-1
+                        ,"cam":-1
+                        ,"region":-1
+                        ,"obj":600
+                        ,"face":0
+                    }
+                    ,"rgnColl":"regions"
+                    ,"objColl":"objects"
+                    ,"dfltListLmt":100
+                }
+                ,"stEnum": {
+                    "IDLE":0
+                    ,"OVERVIEW":1
+                    ,"ZOOMIN":2
+                    ,"UNKNOWN":-1
+                }
+                ,"errEnum":{
+                    "ERR_NONE":null
+                    ,"ERR_DB":"DB_ERROR"
+                    ,"ERR_INV_REQ":"INVALID_REQUEST"
+                    ,"ERR_EXCEPT":"EXCEPTION THROWN"
+                }
+            }
+        }/* end of svcSet dict */
+    }
+    ,"logCfg":{
+        "path":"../logs/"
+    }
+}
